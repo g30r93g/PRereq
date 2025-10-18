@@ -1,0 +1,118 @@
+{
+    "id": "9140aacb-cf19-4fa1-a0a1-ba032f363840",
+    "prevId": "00000000-0000-0000-0000-000000000000",
+    "version": "7",
+    "dialect": "postgresql",
+    "tables": {
+        "public.deps": {
+            "name": "deps",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "dependent_owner": {
+                    "name": "dependent_owner",
+                    "type": "varchar",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "dependent_repo": {
+                    "name": "dependent_repo",
+                    "type": "varchar",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "dependent_num": {
+                    "name": "dependent_num",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "dep_owner": {
+                    "name": "dep_owner",
+                    "type": "varchar",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "dep_repo": {
+                    "name": "dep_repo",
+                    "type": "varchar",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "dep_num": {
+                    "name": "dep_num",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true
+                }
+            },
+            "indexes": {
+                "deps_dependent_repo_idx": {
+                    "name": "deps_dependent_repo_idx",
+                    "columns": [
+                        {
+                            "expression": "dependent_owner",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "dependent_repo",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "deps_dep_repo_idx": {
+                    "name": "deps_dep_repo_idx",
+                    "columns": [
+                        {
+                            "expression": "dep_owner",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "dep_repo",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        }
+    },
+    "enums": {},
+    "schemas": {},
+    "sequences": {},
+    "roles": {},
+    "policies": {},
+    "views": {},
+    "_meta": {
+        "columns": {},
+        "schemas": {},
+        "tables": {}
+    }
+}

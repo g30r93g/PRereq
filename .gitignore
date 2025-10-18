@@ -2,3 +2,8 @@ node_modules/
 dist/
 var/data/
 .eslintcache
+.env
+!.env.example
+*.log
+.drizzle
+*.pem

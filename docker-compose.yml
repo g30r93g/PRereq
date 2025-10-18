@@ -1,0 +1,42 @@
+services:
+    db:
+        image: postgres:16
+        container_name: prereq-db
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: prereq
+        ports:
+            - "5432:5432"
+        volumes:
+            - db-data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d prereq"]
+            interval: 5s
+            timeout: 3s
+            retries: 20
+
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: prereq-app
+        env_file: .env
+        environment:
+            # Point the app at the DB container
+            DATABASE_URL: postgres://postgres:postgres@db:5432/prereq
+            PORT: 3000
+            NODE_ENV: production
+            # If you prefer mounting a PEM file instead of inline PRIVATE_KEY, uncomment:
+            # PRIVATE_KEY_PATH: /run/secrets/gh_app.pem
+        depends_on:
+            db:
+                condition: service_healthy
+        ports:
+            - "3000:3000"
+        # If using PRIVATE_KEY_PATH, mount your PEM as a read-only secret
+        # volumes:
+        #   - ./github-app.private-key.pem:/run/secrets/gh_app.pem:ro
+
+volumes:
+    db-data:
