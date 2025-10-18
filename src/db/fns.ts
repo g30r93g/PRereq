@@ -1,9 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import type { PRRef } from "#src/types";
-
 import { deps as depsTable } from "#src/db/schema";
-
 import { db } from "#src/db/index";
 
 export async function upsertDeps(dependent: PRRef, deps: PRRef[]) {
