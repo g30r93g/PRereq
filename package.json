@@ -1,0 +1,48 @@
+{
+  "name": "prereq",
+  "version": "0.1.0",
+  "description": "PRereq: cross-repo PR dependency gating for GitHub.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "scripts": {
+    "dev": "probot run ./src/app.ts",
+    "start": "NODE_ENV=production probot run ./src/app.ts",
+    "build": "tsc --noEmit false",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "prepare": "husky",
+    "commitlint": "commitlint -e"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "probot": "^13.0.0",
+    "undici": "^6.19.8"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@commitlint/types": "^20.0.0",
+    "@eslint/js": "^9.38.0",
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/node": "^22.7.6",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.4",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.1"
+  },
+  "lint-staged": {
+    "*.js": "eslint --cache --fix",
+    "*.{js,mjs,jsx,ts,tsx,css,scss,html,json,md}": "prettier --write"
+  }
+}

@@ -1,0 +1,232 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - '**.json'
+      - '**.yml'
+      - '**.yaml'
+      - 'LICENSE'
+      - 'README'
+      - 'README.*'
+      - 'docs/**'
+      - '.idea/**'
+      - '.github/**'
+      - '.vscode/**'
+      - 'tests/**'
+      - 'public/**'
+      - 'assets/**'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - '**.json'
+      - '**.yml'
+      - '**.yaml'
+      - 'LICENSE'
+      - 'README'
+      - 'README.*'
+      - 'docs/**'
+      - '.idea/**'
+      - '.github/**'
+      - '.vscode/**'
+      - 'tests/**'
+      - 'public/**'
+      - 'assets/**'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-health:
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && !github.event.pull_request.draft && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Pin pnpm store directory
+        run: pnpm config set store-dir .pnpm-store
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pnpm-store
+          key: ${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.js', '**/*.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Collect dependency reports
+        run: |
+          pnpm audit --audit-level=moderate --json > audit.json 2> audit.err || true
+          pnpm outdated --json > outdated.json || true
+
+      - name: Analyze dependency health
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          const issues = []
+          let shouldFail = false
+
+          const auditPath = 'audit.json'
+          if (fs.existsSync(auditPath)) {
+            const raw = fs.readFileSync(auditPath, 'utf8').trim()
+            if (raw) {
+              try {
+                const data = JSON.parse(raw)
+                if (data.error) {
+                  shouldFail = true
+                  const message = data.error.message || JSON.stringify(data.error)
+                  issues.push(`pnpm audit failed: ${message}`)
+                } else {
+                  const vulnerabilities = data.metadata?.vulnerabilities ?? data.vulnerabilities ?? {}
+                  const severityOrder = ['critical', 'high', 'moderate']
+                  const failing = severityOrder.filter(level => (vulnerabilities[level] ?? 0) > 0)
+                  if (failing.length) {
+                    shouldFail = true
+                    const counts = failing.map(level => `${level}: ${vulnerabilities[level] ?? 0}`).join(', ')
+                    issues.push(`pnpm audit detected vulnerabilities (${counts}).`)
+                  }
+                }
+              } catch (error) {
+                shouldFail = true
+                issues.push(`Could not parse pnpm audit output: ${error.message}`)
+              }
+            }
+          }
+
+          if (!issues.length && fs.existsSync('audit.err')) {
+            const errText = fs.readFileSync('audit.err', 'utf8').trim()
+            if (errText) {
+              const truncated = errText.split('\n').filter(Boolean).slice(-5).join(' ')
+              shouldFail = true
+              issues.push(`pnpm audit reported: ${truncated}`)
+            }
+          }
+
+          const outdatedPath = 'outdated.json'
+          if (fs.existsSync(outdatedPath)) {
+            const raw = fs.readFileSync(outdatedPath, 'utf8').trim()
+            if (raw) {
+              try {
+                const report = JSON.parse(raw)
+                const entries = Object.entries(report)
+                const majorLaggers = entries.filter(([_, info]) => {
+                  const getMajor = (value) => {
+                    if (!value) return Number.NaN
+                    const match = String(value).match(/^(\d+)/)
+                    return match ? Number(match[1]) : Number.NaN
+                  }
+                  const current = getMajor(info.current)
+                  const latest = getMajor(info.latest)
+                  if (Number.isNaN(current) || Number.isNaN(latest)) {
+                    return false
+                  }
+                  return latest - current >= 1
+                })
+                if (majorLaggers.length) {
+                  shouldFail = true
+                  const lines = ['Major version updates required:']
+                  for (const [name, info] of majorLaggers) {
+                    lines.push(`- ${name}: ${info.current} -> ${info.latest}`)
+                  }
+                  issues.push(lines)
+                }
+              } catch (error) {
+                shouldFail = true
+                issues.push(`Could not parse pnpm outdated output: ${error.message}`)
+              }
+            }
+          }
+
+          if (!issues.length) {
+            issues.push('Dependency health checks passed with no actionable issues.')
+          }
+
+          let summaryLines = []
+          if (shouldFail) {
+            summaryLines.push('Dependency health checks failed for this PR.')
+            summaryLines.push('')
+            for (const issue of issues) {
+              if (Array.isArray(issue)) {
+                summaryLines.push(...issue)
+              } else {
+                summaryLines.push(`- ${issue}`)
+              }
+            }
+            summaryLines.push('')
+            summaryLines.push('See the "dependency-health" job logs for full details.')
+          } else {
+            summaryLines = issues
+          }
+
+          fs.writeFileSync('dependency-health-summary.md', summaryLines.join('\n'))
+
+          if (shouldFail) {
+            process.exit(1)
+          }
+          NODE
+
+      - name: Comment with dependency status
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs')
+            const core = require('@actions/core')
+            const path = 'dependency-health-summary.md'
+            let body = 'Dependency health job failed, but no summary was generated. Review the workflow logs for details.'
+            if (fs.existsSync(path)) {
+              body = fs.readFileSync(path, 'utf8').trim()
+            }
+            if (context.payload.pull_request?.head?.repo?.fork) {
+              core.notice('Skipping dependency health comment for forked PR because GITHUB_TOKEN lacks permission to comment.')
+              return
+            }
+
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `⚠️ Dependency health check failed\n\n${body}`
+              })
+            } catch (error) {
+              if (error.status === 403 || error.message?.includes('Resource not accessible by integration')) {
+                core.warning(`Failed to post dependency health comment: ${error.message}. Continuing without comment.`)
+                return
+              }
+              throw error
+            }
