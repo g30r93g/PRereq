@@ -1,5 +1,7 @@
 import { pgTable, varchar, integer, index, uuid } from "drizzle-orm/pg-core";
 
+// Note: dep means dependency here => a PR that is blocking
+// Note: depdendent means a PR that is blocked.
 export const deps = pgTable(
     "deps",
     {

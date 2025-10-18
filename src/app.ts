@@ -7,7 +7,7 @@ import type {
     EvaluationPayload,
 } from "#src/types";
 import { extractDeps } from "#src/parse";
-import { upsertDeps, getDependentsOf } from "#src/db/fns";
+import { upsertDependentsAndDependencies, getDependentsOf } from "#src/db/fns";
 import { setCheckRun } from "#src/check";
 
 const BLOCKING_COMMENT_TEMPLATE = (dependent: PRRef) =>
@@ -138,7 +138,10 @@ async function evaluatePR(
         return;
     }
 
-    await upsertDeps({ owner, repo, num: pr.number }, deps);
+    await upsertDependentsAndDependencies(
+        { owner, repo, num: pr.number },
+        deps,
+    );
 
     if (!enforce) {
         await setCheckRun(context, pr, "neutral", {
