@@ -120,7 +120,7 @@ async function evaluatePR(
     );
     if (hasBypass) {
         await setCheckRun(context, pr, "neutral", {
-            title: "PRereq Checks Bypassed",
+            title: "PR Dependency Checks Bypassed",
             summary:
                 "PR has label 'prereq:deps' or 'skip-prereq' to bypass checks.",
         });
