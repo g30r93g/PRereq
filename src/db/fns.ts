@@ -4,7 +4,10 @@ import type { PRRef } from "#src/types";
 import { deps as depsTable } from "#src/db/schema";
 import { db } from "#src/db/index";
 
-export async function upsertDeps(dependent: PRRef, deps: PRRef[]) {
+export async function upsertDependentsAndDependencies(
+    dependent: PRRef,
+    deps: PRRef[],
+) {
     await db
         .delete(depsTable)
         .where(
@@ -31,7 +34,7 @@ export async function upsertDeps(dependent: PRRef, deps: PRRef[]) {
     );
 }
 
-export async function getDepsOf(dependent: PRRef): Promise<PRRef[]> {
+export async function getDependenciesOf(dependent: PRRef): Promise<PRRef[]> {
     const rows = await db
         .select({
             owner: depsTable.depOwner,

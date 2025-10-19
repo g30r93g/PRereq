@@ -7,8 +7,41 @@ import type {
     EvaluationPayload,
 } from "#src/types";
 import { extractDeps } from "#src/parse";
-import { upsertDeps, getDependentsOf } from "#src/db/fns";
+import { upsertDependentsAndDependencies, getDependentsOf } from "#src/db/fns";
 import { setCheckRun } from "#src/check";
+
+const BLOCKING_COMMENT_TEMPLATE = (dependent: PRRef) =>
+    `This PR is blocking ${dependent.owner}/${dependent.repo}#${dependent.num}`;
+
+async function ensureBlockingComments(
+    octokit: ProbotOctokit,
+    dependent: PRRef,
+    deps: PRRef[],
+): Promise<void> {
+    for (const dep of deps) {
+        const body = BLOCKING_COMMENT_TEMPLATE(dependent);
+        const existing = await octokit.paginate(octokit.issues.listComments, {
+            owner: dep.owner,
+            repo: dep.repo,
+            issue_number: dep.num,
+            per_page: 100,
+        });
+
+        const alreadyCommented = existing.some(
+            (comment) => comment.body?.trim() === body,
+        );
+        if (alreadyCommented) {
+            continue;
+        }
+
+        await octokit.issues.createComment({
+            owner: dep.owner,
+            repo: dep.repo,
+            issue_number: dep.num,
+            body,
+        });
+    }
+}
 
 function isPullRequestDetails(value: unknown): value is PullRequestDetails {
     if (typeof value !== "object" || value === null) {
@@ -87,7 +120,7 @@ async function evaluatePR(
     );
     if (hasBypass) {
         await setCheckRun(context, pr, "neutral", {
-            title: "PRereq Checks Bypassed",
+            title: "PR Dependency Checks Bypassed",
             summary:
                 "PR has label 'prereq:deps' or 'skip-prereq' to bypass checks.",
         });
@@ -105,7 +138,10 @@ async function evaluatePR(
         return;
     }
 
-    await upsertDeps({ owner, repo, num: pr.number }, deps);
+    await upsertDependentsAndDependencies(
+        { owner, repo, num: pr.number },
+        deps,
+    );
 
     if (!enforce) {
         await setCheckRun(context, pr, "neutral", {
@@ -115,6 +151,12 @@ async function evaluatePR(
         });
         return;
     }
+
+    await ensureBlockingComments(
+        context.octokit,
+        { owner, repo, num: pr.number },
+        deps,
+    );
 
     const unmetDeps: string[] = [];
     for (const dep of deps) {
