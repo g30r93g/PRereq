@@ -1,5 +1,5 @@
 {
-    "name": "prereq",
+    "name": "@prereq/core",
     "version": "0.1.0",
     "description": "PRereq: cross-repo PR dependency gating for GitHub.",
     "private": true,
