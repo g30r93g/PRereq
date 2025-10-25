@@ -1,14 +1,15 @@
 import type { Probot, Context as ProbotContext, ProbotOctokit } from "probot";
 
+import { setCheckRun } from "#src/check";
+import { getDependentsOf, upsertDependentsAndDependencies } from "#src/db/fns";
+import { extractDeps } from "#src/parse";
 import type {
     DepStatus,
+    EvaluationPayload,
     PRRef,
     PullRequestDetails,
-    EvaluationPayload,
 } from "#src/types";
-import { extractDeps } from "#src/parse";
-import { upsertDependentsAndDependencies, getDependentsOf } from "#src/db/fns";
-import { setCheckRun } from "#src/check";
+import { detectCycle } from "./graph";
 
 const BLOCKING_COMMENT_TEMPLATE = (dependent: PRRef) =>
     `This PR is blocking ${dependent.owner}/${dependent.repo}#${dependent.num}`;
@@ -142,6 +143,18 @@ async function evaluatePR(
         { owner, repo, num: pr.number },
         deps,
     );
+
+    const cycle = await detectCycle({ owner, repo, num: pr.number });
+    if (cycle.hasCycle) {
+        const chain = cycle.cyclePath
+            .map((c) => `${c.owner}/${c.repo}#${c.num}`)
+            .join(" → ");
+        await setCheckRun(context, pr, "failure", {
+            title: "Circular Dependency Detected",
+            summary: `A circular dependency was detected involving this PR.\n\nDependency chain:\n\n${chain}`,
+        });
+        return;
+    }
 
     if (!enforce) {
         await setCheckRun(context, pr, "neutral", {
