@@ -7,3 +7,4 @@ var/data/
 *.log
 .drizzle
 *.pem
+.DS_Store
