@@ -13,7 +13,7 @@ export type PullRequestDetails = {
     head: { sha: string };
 };
 
-export type PullRequestForCheck = Pick<PullRequestDetails, "head">;
+export type PullRequestForCheck = Pick<PullRequestDetails, "head" | "number">;
 
 export type EvaluationPayload = {
     pull_request: PullRequestDetails;
@@ -22,4 +22,76 @@ export type EvaluationPayload = {
 export type ExtractedDeps = {
     deps: PRRef[];
     enforce: boolean;
+};
+
+export type CheckRunReason =
+    | "bypass-label"
+    | "no-dependencies"
+    | "non-enforced"
+    | "dependencies-met"
+    | "dependencies-unmet"
+    | "dependency-cycle"
+    | "unknown";
+
+export type CheckRunIngestPayload = {
+    owner: string;
+    repo: string;
+    pullNumber: number;
+    conclusion: "success" | "failure" | "neutral";
+    enforced: boolean;
+    reason?: CheckRunReason;
+    installationId?: number | null;
+    repositoryId?: number | null;
+    checkName: string;
+    timestamp: string;
+};
+
+export type SetCheckRunOptions = {
+    conclusion: "success" | "failure" | "neutral";
+    output: { title: string; summary: string };
+    enforced: boolean;
+    reason?: CheckRunReason;
+};
+
+export type CycleResult =
+    | { hasCycle: false }
+    | { hasCycle: true; cyclePath: PRRef[] };
+
+export type DependencyStatusResult = {
+    merged: boolean;
+    state: DepStatus;
+};
+
+export type DependencyStatusResolver = (
+    dep: PRRef,
+) => Promise<DependencyStatusResult>;
+
+export type BlockingCommentHandler = (
+    dependent: PRRef,
+    deps: PRRef[],
+) => Promise<void>;
+
+export type DependencyStorage = {
+    upsertDependentsAndDependencies(
+        dependent: PRRef,
+        deps: PRRef[],
+    ): Promise<void>;
+};
+
+export type CycleDetector = (start: PRRef) => Promise<CycleResult>;
+
+export type CheckRunReporter = (options: SetCheckRunOptions) => Promise<void>;
+
+export type EvaluatePullRequestServices = {
+    storage: DependencyStorage;
+    detectCycle: CycleDetector;
+    ensureBlockingComments: BlockingCommentHandler;
+    resolveDependencyStatus: DependencyStatusResolver;
+    reportCheckRun: CheckRunReporter;
+};
+
+export type EvaluatePullRequestParams = {
+    repo: { owner: string; name: string };
+    pullRequest: PullRequestDetails;
+    services: EvaluatePullRequestServices;
 };

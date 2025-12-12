@@ -1,9 +1,5 @@
 import { getDependentsOf } from "#src/db/fns";
-
-export type PRRef = { owner: string; repo: string; num: number };
-export type CycleResult =
-    | { hasCycle: false }
-    | { hasCycle: true; cyclePath: PRRef[] };
+import type { PRRef, CycleResult } from "#src/types";
 
 const MAX_NODES = 200;
 
