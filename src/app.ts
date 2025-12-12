@@ -1,7 +1,7 @@
 import type { Probot, Context as ProbotContext, ProbotOctokit } from "probot";
 
-import { evaluatePullRequest } from "#src/core";
 import { setCheckRun } from "#src/check";
+import { evaluatePullRequest } from "#src/core";
 import { getDependentsOf, upsertDependentsAndDependencies } from "#src/db/fns";
 import { detectCycle } from "#src/graph";
 import type {

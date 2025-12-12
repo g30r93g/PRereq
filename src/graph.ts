@@ -1,5 +1,5 @@
 import { getDependentsOf } from "#src/db/fns";
-import type { PRRef, CycleResult } from "#src/types";
+import type { CycleResult, PRRef } from "#src/types";
 
 const MAX_NODES = 200;
 
