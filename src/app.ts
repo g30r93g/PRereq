@@ -1,15 +1,15 @@
 import type { Probot, Context as ProbotContext, ProbotOctokit } from "probot";
 
 import { setCheckRun } from "#src/check";
+import { evaluatePullRequest } from "#src/core";
 import { getDependentsOf, upsertDependentsAndDependencies } from "#src/db/fns";
-import { extractDeps } from "#src/parse";
+import { detectCycle } from "#src/graph";
 import type {
     DepStatus,
     EvaluationPayload,
     PRRef,
     PullRequestDetails,
 } from "#src/types";
-import { detectCycle } from "./graph";
 
 const BLOCKING_COMMENT_TEMPLATE = (dependent: PRRef) =>
     `This PR is blocking ${dependent.owner}/${dependent.repo}#${dependent.num}`;
@@ -105,7 +105,7 @@ async function evaluatePR(
     context: ProbotContext,
     payload?: EvaluationPayload,
 ): Promise<void> {
-    const { owner, repo } = context.repo();
+    const repoContext = context.repo();
     const pr = resolvePullRequest(context, payload);
 
     if (!pr) {
@@ -113,102 +113,42 @@ async function evaluatePR(
         return;
     }
 
-    const prLabels = Array.isArray(pr.labels)
-        ? pr.labels.map((label) => label?.name ?? "")
-        : [];
-    const hasBypass = prLabels.some((l: string) =>
-        /^(prereq:deps|skip-prereq)$/.test(l || ""),
-    );
-    if (hasBypass) {
-        await setCheckRun(context, pr, "neutral", {
-            title: "PR Dependency Checks Bypassed",
-            summary:
-                "PR has label 'prereq:deps' or 'skip-prereq' to bypass checks.",
-        });
-    }
-
-    const text = `${pr.title}\n${pr.body ?? ""}`;
-
-    const { deps, enforce } = extractDeps(text, owner, repo);
-
-    if (deps.length === 0) {
-        await setCheckRun(context, pr, "success", {
-            title: "No PR Dependencies Found",
-            summary: "No PR dependencies were found in the PR.",
-        });
-        return;
-    }
-
-    await upsertDependentsAndDependencies(
-        { owner, repo, num: pr.number },
-        deps,
-    );
-
-    const cycle = await detectCycle({ owner, repo, num: pr.number });
-    if (cycle.hasCycle) {
-        const chain = cycle.cyclePath
-            .map((c) => `${c.owner}/${c.repo}#${c.num}`)
-            .join(" → ");
-        await setCheckRun(context, pr, "failure", {
-            title: "Circular Dependency Detected",
-            summary: `A circular dependency was detected involving this PR.\n\nDependency chain:\n\n${chain}`,
-        });
-        return;
-    }
-
-    if (!enforce) {
-        await setCheckRun(context, pr, "neutral", {
-            title: "PR Dependencies Found (Not Enforced)",
-            summary:
-                "PR dependencies were found, but no enforcement keywords were present.",
-        });
-        return;
-    }
-
-    await ensureBlockingComments(
-        context.octokit,
-        { owner, repo, num: pr.number },
-        deps,
-    );
-
-    const unmetDeps: string[] = [];
-    for (const dep of deps) {
-        const merged = await isMerged(context.octokit, dep);
-        if (!merged) {
-            let state: DepStatus = "unknown";
-            try {
-                const info = await context.octokit.pulls.get({
-                    owner: dep.owner,
-                    repo: dep.repo,
-                    pull_number: dep.num,
-                });
-                if (info.data.draft) {
-                    state = "draft";
-                } else {
-                    state = info.data.state === "open" ? "open" : "closed";
+    await evaluatePullRequest({
+        repo: { owner: repoContext.owner, name: repoContext.repo },
+        pullRequest: pr,
+        services: {
+            reportCheckRun: (options) => setCheckRun(context, pr, options),
+            storage: {
+                upsertDependentsAndDependencies: (dependent, deps) =>
+                    upsertDependentsAndDependencies(dependent, deps),
+            },
+            detectCycle: (start) => detectCycle(start),
+            ensureBlockingComments: (dependent, deps) =>
+                ensureBlockingComments(context.octokit, dependent, deps),
+            resolveDependencyStatus: async (dep) => {
+                const merged = await isMerged(context.octokit, dep);
+                if (merged) {
+                    return { merged: true, state: "merged" };
                 }
-            } catch {
-                /* empty */
-            }
-            unmetDeps.push(
-                `${dep.owner}/${dep.repo}#${dep.num} → not merged (${state})`,
-            );
-        }
-    }
-
-    if (unmetDeps.length === 0) {
-        await setCheckRun(context, pr, "success", {
-            title: "All PR Dependencies Met",
-            summary: "All PR dependencies have been merged.",
-        });
-    } else {
-        await setCheckRun(context, pr, "failure", {
-            title: "Unmet PR Dependencies",
-            summary: `The following PR dependencies must first be merged:\n\n${unmetDeps
-                .map((d) => `- ${d}`)
-                .join("\n")}`,
-        });
-    }
+                let state: DepStatus = "unknown";
+                try {
+                    const info = await context.octokit.pulls.get({
+                        owner: dep.owner,
+                        repo: dep.repo,
+                        pull_number: dep.num,
+                    });
+                    if (info.data.draft) {
+                        state = "draft";
+                    } else {
+                        state = info.data.state === "open" ? "open" : "closed";
+                    }
+                } catch {
+                    /* empty */
+                }
+                return { merged: false, state };
+            },
+        },
+    });
 }
 
 export default (app: Probot) => {

@@ -1,9 +1,18 @@
 {
-    "name": "prereq",
+    "name": "@prereq/core",
     "version": "0.1.0",
     "description": "PRereq: cross-repo PR dependency gating for GitHub.",
     "private": true,
     "type": "module",
+    "main": "./src/index.ts",
+    "module": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts"
+        }
+    },
     "engines": {
         "node": ">=22.20.0"
     },
