@@ -13,6 +13,7 @@ RUN pnpm install --frozen-lockfile
 
 # Build
 COPY src ./src
+COPY drizzle ./drizzle
 RUN pnpm build
 
 # ---------- Runtime ----------
@@ -24,6 +25,7 @@ RUN corepack enable
 # Copy built app + node_modules (includes devDeps so drizzle-kit is available for migrations)
 COPY --from=base /app/node_modules ./node_modules
 COPY --from=base /app/dist ./dist
+COPY --from=base /app/drizzle ./drizzle
 COPY package.json ./
 COPY drizzle.config.ts ./drizzle.config.ts
 

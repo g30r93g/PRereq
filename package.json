@@ -17,8 +17,8 @@
         "node": ">=22.20.0"
     },
     "scripts": {
-        "dev": "NODE_OPTIONS='--import=tsx/esm' probot run ./src/app.ts",
-        "start": "NODE_ENV=production NODE_OPTIONS='--import=tsx/esm' probot run ./src/app.ts",
+        "dev": "NODE_OPTIONS='--import=tsx/esm --conditions=development' probot run ./src/app.ts",
+        "start": "NODE_ENV=production NODE_OPTIONS='--import=tsx/esm --conditions=development' probot run ./src/app.ts",
         "build": "tsc --noEmit false",
         "typecheck": "tsc --noEmit",
         "lint": "eslint",
@@ -64,6 +64,9 @@
         "*.{js,mjs,jsx,ts,tsx,css,scss,html,json,md}": "prettier --write"
     },
     "imports": {
-        "#src/*": "./src/*.ts"
+        "#src/*": {
+            "development": "./src/*.ts",
+            "default": "./dist/src/*.js"
+        }
     }
 }
