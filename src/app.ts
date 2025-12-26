@@ -4,6 +4,7 @@ import { setCheckRun } from "#src/check";
 import { evaluatePullRequest } from "#src/core";
 import { getDependentsOf, upsertDependentsAndDependencies } from "#src/db/fns";
 import { detectCycle } from "#src/graph";
+import { fetchPolicyDecision } from "#src/policy";
 import type {
     DepStatus,
     EvaluationPayload,
@@ -113,18 +114,25 @@ async function evaluatePR(
         return;
     }
 
+    const policy = await fetchPolicyDecision(context);
+
     await evaluatePullRequest({
         repo: { owner: repoContext.owner, name: repoContext.repo },
         pullRequest: pr,
         services: {
-            reportCheckRun: (options) => setCheckRun(context, pr, options),
+            reportCheckRun: (options) =>
+                policy.allowChecks
+                    ? setCheckRun(context, pr, options)
+                    : Promise.resolve(),
             storage: {
                 upsertDependentsAndDependencies: (dependent, deps) =>
                     upsertDependentsAndDependencies(dependent, deps),
             },
             detectCycle: (start) => detectCycle(start),
             ensureBlockingComments: (dependent, deps) =>
-                ensureBlockingComments(context.octokit, dependent, deps),
+                policy.allowComments
+                    ? ensureBlockingComments(context.octokit, dependent, deps)
+                    : Promise.resolve(),
             resolveDependencyStatus: async (dep) => {
                 const merged = await isMerged(context.octokit, dep);
                 if (merged) {
