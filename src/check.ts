@@ -1,4 +1,5 @@
 import type { Context as ProbotContext } from "probot";
+import crypto from "node:crypto";
 
 import type {
     CheckRunIngestPayload,
@@ -17,6 +18,13 @@ async function postCheckRunIngest(
     if (!baseUrl) {
         return;
     }
+    const ingestSecret = process.env.INGEST_HMAC_SECRET;
+    if (!ingestSecret) {
+        context.log.warn(
+            "INGEST_HMAC_SECRET is not set; skipping check-run ingest.",
+        );
+        return;
+    }
 
     let target: URL;
     try {
@@ -29,8 +37,15 @@ async function postCheckRunIngest(
         return;
     }
 
+    const body = JSON.stringify(payload);
     const headers: Record<string, string> = {
         "content-type": "application/json",
+        "x-prereq-signature":
+            "sha256=" +
+            crypto
+                .createHmac("sha256", ingestSecret)
+                .update(body)
+                .digest("hex"),
     };
     const token = process.env.PREREQ_CLOUD_API_TOKEN;
     if (token) {
@@ -41,7 +56,7 @@ async function postCheckRunIngest(
         const response = await fetch(target, {
             method: "POST",
             headers,
-            body: JSON.stringify(payload),
+            body,
         });
         if (!response.ok) {
             context.log.warn(
