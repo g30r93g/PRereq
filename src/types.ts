@@ -34,16 +34,13 @@ export type CheckRunReason =
     | "unknown";
 
 export type CheckRunIngestPayload = {
-    owner: string;
+    installationId: number;
+    orgLogin: string;
     repo: string;
-    pullNumber: number;
+    prNumber: number;
+    headSha: string;
     conclusion: "success" | "failure" | "neutral";
-    enforced: boolean;
-    reason?: CheckRunReason;
-    installationId?: number | null;
-    repositoryId?: number | null;
-    checkName: string;
-    timestamp: string;
+    createdAt: string;
 };
 
 export type SetCheckRunOptions = {
