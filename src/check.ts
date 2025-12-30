@@ -99,19 +99,19 @@ export async function setCheckRun(
     };
     const payloadContext = context.payload as PayloadContext;
     const installationId = payloadContext.installation?.id ?? null;
-    const repositoryId = payloadContext.repository?.id ?? null;
+    if (installationId === null || installationId === undefined) {
+        context.log.warn("Missing installation id; skipping check-run ingest.");
+        return;
+    }
 
     const payload: CheckRunIngestPayload = {
-        owner,
-        repo,
-        pullNumber: pr.number,
-        conclusion: options.conclusion,
-        enforced: options.enforced,
-        reason: options.reason ?? "unknown",
         installationId,
-        repositoryId,
-        checkName: CHECK_NAME,
-        timestamp: new Date().toISOString(),
+        orgLogin: owner,
+        repo,
+        prNumber: pr.number,
+        headSha: sha,
+        conclusion: options.conclusion,
+        createdAt: new Date().toISOString(),
     };
 
     void postCheckRunIngest(context, payload);
